@@ -39,7 +39,6 @@ messages.post("/", async (req, res) => {
     }
 });
 
-// TOFIX: achar maneira de ordenar mensagens corretamente
 messages.get("/", async (req, res) => {
     const limit = req.query.limit || 100;
     const user = req.headers["user"];
