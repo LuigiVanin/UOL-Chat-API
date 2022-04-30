@@ -1,76 +1,79 @@
 import dayjs from "dayjs";
 import { Router } from "express";
-import { mongoClient } from "../database/index.js";
+import { db } from "../database/index.js";
+import { messageSchema } from "../schemas/message.js";
+import { userSchema } from "../schemas/user.js";
 
 const messages = Router();
 
 messages.post("/", async (req, res) => {
     let user = req.headers["user"];
-    const { message, to, type } = req.body;
+    const { text, to, type } = req.body;
+    const validation = messageSchema.validate({
+        to,
+        text,
+        from: user,
+        type,
+    });
+    if (validation.error) {
+        return res.sendStatus(422);
+    }
     try {
-        await mongoClient.connect();
-        const db = mongoClient.db(process.env.DB);
         const userCheck = await db
             .collection("participants")
             .findOne({ name: user });
-        user = userCheck && userCheck.name;
+        if (!userCheck) {
+            return res.sendStatus(401);
+        }
         const newMessage = {
-            from: user,
-            to: to,
-            message: message,
-            type: type,
+            ...validation.value,
             time: dayjs(Date.now()).format("HH:mm:ss"),
         };
-        // TODO: valisação com JOI
-        // await db.collection("messages").insertOne(newMessage);
-        res.status(201).send(newMessage);
+        console.log(newMessage);
+        await db.collection("messages").insertOne(newMessage);
+        return res.status(201).send(newMessage);
     } catch (err) {
         console.log(err);
         res.sendStatus(500);
-    } finally {
-        mongoClient.close();
     }
 });
 
 messages.get("/", async (req, res) => {
     const limit = req.query.limit || 100;
     const user = req.headers["user"];
-    if (!user) return res.sendStatus(401);
-
+    const validation = userSchema.validate({ name: user });
+    if (validation.error) {
+        return res.sendStatus(422);
+    }
     try {
-        await mongoClient.connect();
-        const db = mongoClient.db(process.env.DB);
         let username = await db
             .collection("participants")
             .findOne({ name: user });
         username = username && username.name;
         if (!username) {
-            res.sendStatus(401);
-        } else {
-            let result = await db
-                .collection("messages")
-                .find({})
-                .sort({ _id: -1 }) // inverter banco para buscar mais recentes
-                .limit(limit)
-                .toArray();
-
-            result = result
-                .filter((msg) => {
-                    if (msg.type === "private" && msg.to !== user) {
-                        return false;
-                    }
-                    return true;
-                })
-                .map(({ from, to, type, message, time }) => {
-                    return { from, to, type, message, time };
-                });
-            res.send(result);
+            return res.sendStatus(401);
         }
+        let result = await db
+            .collection("messages")
+            .find({})
+            .sort({ _id: -1 }) // inverter banco para buscar mais recentes
+            .limit(Number(limit))
+            .toArray();
+
+        result = result
+            .filter((msg) => {
+                if (msg.type === "private_message" && msg.to !== user) {
+                    return false;
+                }
+                return true;
+            })
+            .map(({ from, to, type, text, time }) => {
+                return { from, to, type, text, time };
+            });
+        return res.send(result);
     } catch (err) {
         console.log(err);
         res.sendStatus(500);
-    } finally {
-        mongoClient.close();
     }
 });
 
