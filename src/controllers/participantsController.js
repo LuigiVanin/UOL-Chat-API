@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { Router } from "express";
 import { db } from "../database/index.js";
 import { userSchema } from "../schemas/user.js";
+import { printStatus } from "../helpers/status.js";
 
 const participants = Router();
 
@@ -29,6 +30,7 @@ participants.post("/participants", async (req, res) => {
             time: dayjs(Date.now()).format("HH:mm:ss"),
         };
         await db.collection("messages").insertOne(newMessage);
+        printStatus("/participants[POST]", newMessage);
         return res.sendStatus(201);
     } catch (err) {
         console.log("Algum erro na conexão", err);
@@ -42,6 +44,7 @@ participants.get("/participants", async (req, res) => {
             .collection("participants")
             .find({})
             .toArray();
+        printStatus("/participants[GET]");
         res.status(200).send(
             participants.map((part) => ({
                 name: part.name,
@@ -61,7 +64,6 @@ participants.post("/status", async (req, res) => {
     if (validation.error) {
         return res.sendStatus(422);
     }
-    console.log("validation");
 
     try {
         const userResult = await db
@@ -79,6 +81,7 @@ participants.post("/status", async (req, res) => {
                 new: dayjs(Date.now()).format("HH:mm:ss"),
             },
         });
+        printStatus("/status[POST]");
         return;
     } catch (err) {
         console.log(err);

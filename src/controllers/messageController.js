@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 import { Router } from "express";
 import { db } from "../database/index.js";
+import { printStatus } from "../helpers/status.js";
 import { messageSchema } from "../schemas/message.js";
 import { userSchema } from "../schemas/user.js";
 
@@ -29,8 +30,8 @@ messages.post("/", async (req, res) => {
             ...validation.value,
             time: dayjs(Date.now()).format("HH:mm:ss"),
         };
-        console.log(newMessage);
         await db.collection("messages").insertOne(newMessage);
+        printStatus("/message[POST]", newMessage);
         return res.status(201).send(newMessage);
     } catch (err) {
         console.log(err);
@@ -38,6 +39,7 @@ messages.post("/", async (req, res) => {
     }
 });
 
+// TOFIX: achar maneira de ordenar mensagens corretamente
 messages.get("/", async (req, res) => {
     const limit = req.query.limit || 100;
     const user = req.headers["user"];
@@ -53,24 +55,30 @@ messages.get("/", async (req, res) => {
         if (!username) {
             return res.sendStatus(401);
         }
+
+        // Enviar do mais novo ao mais velho: ordenar ao contrário(sort -1)
+        // Pegar apenas os n primeiros valores: limit n
+        // Inverter output pois o front print na ordem contrária da que chega: reverse()
         let result = await db
             .collection("messages")
             .find({})
-            .sort({ _id: -1 }) // inverter banco para buscar mais recentes
             .limit(Number(limit))
+            .sort({ _id: -1 })
             .toArray();
 
-        result = result
-            .filter((msg) => {
-                if (msg.type === "private_message" && msg.to !== user) {
-                    return false;
-                }
-                return true;
-            })
-            .map(({ from, to, type, text, time }) => {
-                return { from, to, type, text, time };
-            });
-        return res.send(result);
+        result = result.filter((msg) => {
+            if (
+                msg.type === "private_message" &&
+                msg.to !== user &&
+                msg.from !== user
+            ) {
+                return false;
+            }
+            return true;
+        });
+
+        printStatus("messages/[GET]");
+        return res.send(result.reverse());
     } catch (err) {
         console.log(err);
         res.sendStatus(500);
