@@ -1,5 +1,7 @@
 import dayjs from "dayjs";
 import { Router } from "express";
+import { ObjectId } from "mongodb";
+import { stripHtml } from "string-strip-html";
 import { db } from "../database/index.js";
 import { printStatus } from "../helpers/status.js";
 import { messageSchema } from "../schemas/message.js";
@@ -9,7 +11,11 @@ const messages = Router();
 
 messages.post("/", async (req, res) => {
     let user = req.headers["user"];
-    const { text, to, type } = req.body;
+    let { text, to, type } = req.body;
+    if (!user || !text) return res.sendStatus(422);
+    user = stripHtml(user).result.trim();
+    text = stripHtml(text).result.trim();
+
     const validation = messageSchema.validate({
         to,
         text,
@@ -31,7 +37,7 @@ messages.post("/", async (req, res) => {
             time: dayjs(Date.now()).format("HH:mm:ss"),
         };
         await db.collection("messages").insertOne(newMessage);
-        printStatus("/message[POST]", newMessage);
+        printStatus("/message [POST]", newMessage);
         return res.status(201).send(newMessage);
     } catch (err) {
         console.log(err);
@@ -41,7 +47,9 @@ messages.post("/", async (req, res) => {
 
 messages.get("/", async (req, res) => {
     const limit = req.query.limit || 100;
-    const user = req.headers["user"];
+    let user = req.headers["user"];
+    if (!user) return res.sendStatus(422);
+    user = stripHtml(user).result.trim();
     const validation = userSchema.validate({ name: user });
     if (validation.error) {
         return res.sendStatus(422);
@@ -76,8 +84,77 @@ messages.get("/", async (req, res) => {
             return true;
         });
 
-        printStatus("messages/[GET]");
+        printStatus("messages/ [GET]");
         return res.send(result.reverse());
+    } catch (err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+});
+
+messages.delete("/:idMessage", async (req, res) => {
+    let user = req.headers["user"];
+    const { idMessage } = req.params;
+    if (!user || !idMessage) {
+        return res.sendStatus(422);
+    }
+    user = stripHtml(user).result.trim();
+    const validation = userSchema.validate({ name: user });
+    if (validation.error) {
+        return res.sendStatus(422);
+    }
+    try {
+        const message = await db
+            .collection("messages")
+            .findOne({ _id: new ObjectId(idMessage) });
+        if (!message) {
+            return res.sendStatus(404);
+        }
+        if (message.from !== user) {
+            return res.sendStatus(401);
+        }
+        const deleted = await db
+            .collection("messages")
+            .findOneAndDelete({ _id: new ObjectId(idMessage) });
+        printStatus(`messages/${idMessage} [DELETE]`, deleted);
+        return res.sendStatus(204);
+    } catch (err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+});
+
+messages.put("/:idMessage", async (req, res) => {
+    let user = req.headers["user"];
+    let { text, to, type } = req.body;
+    const { idMessage } = req.params;
+    if (!user || !idMessage || !text) {
+        return res.sendStatus(422);
+    }
+    text = stripHtml(text).result.trim();
+    user = stripHtml(user).result.trim();
+    const validation = messageSchema.validate({ from: user, to, text, type });
+    if (validation.error) {
+        return res.sendStatus(422);
+    }
+    try {
+        const message = await db
+            .collection("messages")
+            .findOne({ _id: new ObjectId(idMessage) });
+        if (!message) {
+            return res.sendStatus(404);
+        }
+        if (message.from !== user) {
+            return res.sendStatus(401);
+        }
+        const updated = await db
+            .collection("messages")
+            .findOneAndUpdate(
+                { _id: new ObjectId(idMessage) },
+                { $set: { text: text } }
+            );
+        printStatus(`messages/${idMessage} [PUT]`, updated);
+        return res.sendStatus(204);
     } catch (err) {
         console.log(err);
         res.sendStatus(500);

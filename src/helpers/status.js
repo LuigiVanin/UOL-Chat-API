@@ -6,6 +6,7 @@ export function printStatus(request, data = null, status = "sucess") {
     console.log(
         "\n" +
             chalk.underline.yellow("Requisição:") +
+            " " +
             chalk.bold.yellow(request)
     );
     if (status === "sucess") {

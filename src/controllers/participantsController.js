@@ -3,11 +3,14 @@ import { Router } from "express";
 import { db } from "../database/index.js";
 import { userSchema } from "../schemas/user.js";
 import { printStatus } from "../helpers/status.js";
+import { stripHtml } from "string-strip-html";
 
 const participants = Router();
 
 participants.post("/participants", async (req, res) => {
-    const { name } = req.body;
+    let { name } = req.body;
+    if (!name) return res.sendStatus(422);
+    name = stripHtml(name).result.trim();
     const validation = userSchema.validate({ name });
     if (validation.error) {
         return res.sendStatus(422);
@@ -30,8 +33,8 @@ participants.post("/participants", async (req, res) => {
             time: dayjs(Date.now()).format("HH:mm:ss"),
         };
         await db.collection("messages").insertOne(newMessage);
-        printStatus("/participants[POST]", newMessage);
-        return res.sendStatus(201);
+        printStatus("/participants [POST]", newMessage);
+        return res.status(201).send({ name });
     } catch (err) {
         console.log("Algum erro na conexão", err);
         return res.sendStatus(500);
@@ -44,7 +47,7 @@ participants.get("/participants", async (req, res) => {
             .collection("participants")
             .find({})
             .toArray();
-        printStatus("/participants[GET]");
+        printStatus("/participants [GET]");
         res.status(200).send(
             participants.map((part) => ({
                 name: part.name,
@@ -59,7 +62,9 @@ participants.get("/participants", async (req, res) => {
 
 // validação do user antes da conexão com o db (422)
 participants.post("/status", async (req, res) => {
-    const user = req.headers["user"];
+    let user = req.headers["user"];
+    if (!user) return res.sendStatus(422);
+    user = stripHtml(user).result.trim();
     const validation = userSchema.validate({ name: user });
     if (validation.error) {
         return res.sendStatus(422);
@@ -81,7 +86,7 @@ participants.post("/status", async (req, res) => {
                 new: dayjs(Date.now()).format("HH:mm:ss"),
             },
         });
-        printStatus("/status[POST]");
+        printStatus("/status [POST]");
         return;
     } catch (err) {
         console.log(err);
