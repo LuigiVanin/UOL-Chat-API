@@ -12,9 +12,9 @@ const messages = Router();
 messages.post("/", async (req, res) => {
     let user = req.headers["user"];
     let { text, to, type } = req.body;
-    if (!user || !text) return res.sendStatus(422);
-    user = stripHtml(user).result.trim();
-    text = stripHtml(text).result.trim();
+    // if (!user || !text) return res.sendStatus(422);
+    user = user && stripHtml(user).result.trim();
+    text = text && stripHtml(text).result.trim();
 
     const validation = messageSchema.validate({
         to,
@@ -48,8 +48,8 @@ messages.post("/", async (req, res) => {
 messages.get("/", async (req, res) => {
     const limit = req.query.limit || 100;
     let user = req.headers["user"];
-    if (!user) return res.sendStatus(422);
-    user = stripHtml(user).result.trim();
+    // if (!user) return res.sendStatus(422);
+    user = user && stripHtml(user).result.trim();
     const validation = userSchema.validate({ name: user });
     if (validation.error) {
         return res.sendStatus(422);
@@ -75,6 +75,7 @@ messages.get("/", async (req, res) => {
 
         result = result.filter((msg) => {
             if (
+                msg.to !== "Todos" &&
                 msg.type === "private_message" &&
                 msg.to !== user &&
                 msg.from !== user
@@ -95,12 +96,12 @@ messages.get("/", async (req, res) => {
 messages.delete("/:idMessage", async (req, res) => {
     let user = req.headers["user"];
     const { idMessage } = req.params;
-    if (!user || !idMessage) {
-        return res.sendStatus(422);
-    }
-    user = stripHtml(user).result.trim();
+    // if (!user || !idMessage) {
+    //     return res.sendStatus(422);
+    // }
+    user = user && stripHtml(user).result.trim();
     const validation = userSchema.validate({ name: user });
-    if (validation.error) {
+    if (validation.error || !idMessage) {
         return res.sendStatus(422);
     }
     try {
@@ -128,13 +129,10 @@ messages.put("/:idMessage", async (req, res) => {
     let user = req.headers["user"];
     let { text, to, type } = req.body;
     const { idMessage } = req.params;
-    if (!user || !idMessage || !text) {
-        return res.sendStatus(422);
-    }
-    text = stripHtml(text).result.trim();
-    user = stripHtml(user).result.trim();
+    text = text && stripHtml(text).result.trim();
+    user = user && stripHtml(user).result.trim();
     const validation = messageSchema.validate({ from: user, to, text, type });
-    if (validation.error) {
+    if (validation.error || !idMessage) {
         return res.sendStatus(422);
     }
     try {
@@ -153,7 +151,7 @@ messages.put("/:idMessage", async (req, res) => {
                 { _id: new ObjectId(idMessage) },
                 { $set: { text: text } }
             );
-        printStatus(`messages/${idMessage} [PUT]`, updated);
+        printStatus(`messages/${idMessage} [PUT]`, { ...message, text });
         return res.sendStatus(204);
     } catch (err) {
         console.log(err);

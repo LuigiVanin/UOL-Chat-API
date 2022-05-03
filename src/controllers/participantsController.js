@@ -9,8 +9,7 @@ const participants = Router();
 
 participants.post("/participants", async (req, res) => {
     let { name } = req.body;
-    if (!name) return res.sendStatus(422);
-    name = stripHtml(name).result.trim();
+    name = name && stripHtml(name).result.trim();
     const validation = userSchema.validate({ name });
     if (validation.error) {
         return res.sendStatus(422);
@@ -63,8 +62,7 @@ participants.get("/participants", async (req, res) => {
 // validação do user antes da conexão com o db (422)
 participants.post("/status", async (req, res) => {
     let user = req.headers["user"];
-    if (!user) return res.sendStatus(422);
-    user = stripHtml(user).result.trim();
+    user = user && stripHtml(user).result.trim();
     const validation = userSchema.validate({ name: user });
     if (validation.error) {
         return res.sendStatus(422);
